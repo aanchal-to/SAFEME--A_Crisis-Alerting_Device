@@ -1,0 +1,74 @@
+import base64
+import database
+import secrets
+import hashlib
+from Cryptodome import Random
+from Cryptodome.Cipher import AES
+import tinyec.ec as ec
+BLOCK_SIZE = 16
+def pad(s):
+return s + (BLOCK_SIZE - len(s) % BLOCK_SIZE) * chr(BLOCK_SIZE - len(s) % BLOCK_SIZE)
+def unpad(s):
+return s[:-ord(s[len(s) - 1:])]
+def compress(pubKey):
+return hex(pubKey.x) + hex(pubKey.y % 2)[2:]
+def get_curve():
+name = 'brainpoolP256r1'
+curve_params = {"p": 0xA9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377,
+"a": 0x7D5A0975FC2C3057EEF67530417AFFE7FB8055C126DC5C6CE94A4B44F330B5D9,
+"b": 0x26DC5C6CE94A4B44F330B5D9BBD77CBF958416295CF7E1CE6BCCDC18FF8C07B6,
+"g": (0x8BD2AEB9CB7E57CB2C4B482FFC81B7AFB9DE27E1E3BD23C23A4453BD9ACE3262,
+0x547EF835C3DAC4FD97F8461A14611DC9C27745132DED8E545C1D54C72F046997),
+"n": 0xA9FB57DBA1EEA9BC3E660A909D838D718C397AA3B561A6F7901E0E82974856A7,
+"h": 0x1}
+try:
+sub_group = ec.SubGroup(curve_params["p"], curve_params["g"], curve_params["n"],
+curve_params["h"])
+curve = ec.Curve(curve_params["a"], curve_params["b"], sub_group, name)
+except KeyError:
+raise RuntimeError("Missing parameters for curve %s" % name)
+return curve
+def ecdhe():
+curve = get_curve()
+PrivKey1 = secrets.randbelow(curve.field.n)
+PubKey1 = PrivKey1 * curve.g
+PrivKey2 = secrets.randbelow(curve.field.n)
+PubKey2 = PrivKey2 * curve.g
+SharedKey1 = PrivKey1 * PubKey2
+SharedKey2 = PrivKey2 * PubKey1
+if SharedKey1 == SharedKey2:
+password = compress(SharedKey1)
+print("\nThe shared keys are equal.")
+print("ECDH has successfully been implemented.")
+else:
+print("Shared keys are not equal.")
+exit()
+return password
+def encrypt(raw):
+password = ecdhe()
+send = base64.b64encode(password.encode("utf-8"))
+private_key = hashlib.sha256(send).digest()
+raw = pad(raw)
+iv = Random.new().read(AES.block_size)
+cipher = AES.new(private_key, AES.MODE_CBC, iv)
+encrypted_data = base64.b64encode(iv + cipher.encrypt(raw.encode('utf-8')))
+return encrypted_data, password
+def decrypt(enc, password):
+enc = base64.b64decode(enc)
+send = base64.b64encode(password.encode("utf-8"))
+private_key = hashlib.sha256(send).digest()
+iv = enc[:16]
+cipher = AES.new(private_key, AES.MODE_CBC, iv)
+return unpad(cipher.decrypt(enc[16:]))
+if __name__ == "__main__":
+plaintext = database.x + " " +database.y
+encrypted_message, password = encrypt(plaintext)
+print("\nEncrypted message : ", encrypted_message.decode('utf-8'))
+decrypted_message = decrypt(encrypted_message, password)
+print("\nx coordinate : ", decrypted_message.decode('utf-8')[:7])
+print("y coordinate : ", decrypted_message.decode('utf-8')[8:])
+print("\n")
+def send(name):
+pt = input("Enter the message to be sent : ")
+encrypted_message, password = encrypt(pt)
+return name, encrypted_message, password
