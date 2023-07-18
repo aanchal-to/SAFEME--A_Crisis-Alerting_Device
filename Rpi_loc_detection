@@ -1,0 +1,27 @@
+import time
+import RPi.GPIO as GPIO # Import Raspberry Pi GPIO library
+import pyrebase
+config = {
+"apiKey": "AIzaSyBN3HSMWs06KXZcVSZNUmxKXq_cm1jwr98",
+"authDomain": "wearable-7f95d.firebaseapp.com",
+"databaseURL": "https://wearable-7f95d-default-rtdb.firebaseio.com",
+"projectId": "wearable-7f95d",
+"storageBucket": "wearable-7f95d.appspot.com",
+"messagingSenderId": "530368227218",
+"appId": "1:530368227218:web:5b184e5203f97a3a3c034b",
+#"measurementId": "G-E39D1GDQRJ"
+};
+firebase = pyrebase.initialize_app(config)
+db = firebase.database()
+storage = firebase.database()
+GPIO.setwarnings(False) # Ignore warning for now
+GPIO.setmode(GPIO.BOARD) # Use physical pin numbering
+GPIO.setup(10, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Set pin 10 to be an input pin and set initial value to be pulled low (off)
+def button_callback(channel):
+print("Button is pressed.")
+data = {"Help me!":"This is my location.","X" : "12.9716","Y":"79.1660"}
+db.set(data)
+time.sleep(2)
+GPIO.add_event_detect(10,GPIO.RISING,callback=button_callback) # Setup event on pin 10 rising edge
+message = input("Press enter to quit\n\n") # Run until someone presses enter
+GPIO.cleanup() # Clean up
